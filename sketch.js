@@ -1,7 +1,4 @@
-// Simulação dos dados de uma planilha
-// Em um projeto real, você poderia carregar esses dados de um arquivo JSON ou API.
-//const folhaDados =
-// Otimização: Debounce (para evitar lentidão na busca em 4639 itens)
+// OTIMIZAÇÃO: Debounce para evitar lentidão na busca em 4639 itens
 function debounce(func, delay = 300) {
     let timeoutId;
     return function(...args) {
@@ -13,11 +10,12 @@ function debounce(func, delay = 300) {
 }
 
 // ==============================================
-// ESTADO GLOBAL DA APLICAÇÃO (Paginação)
+// ESTADO GLOBAL (Os arrays serão populados após carregar o JSON)
 // ==============================================
-const ITENS_POR_PAGINA = 50; // Quantos itens serão exibidos por vez
-let dadosAtuais = folhaDados; // Lista filtrada ou a lista completa
-let paginaAtual = 0; // Começa na primeira página (índice 0)
+let folhaDados = []; // Array principal, populado pelo fetch
+let dadosAtuais = []; // Lista filtrada ou a lista completa
+let paginaAtual = 0;
+const ITENS_POR_PAGINA = 50;
 
 // Referências DOM
 const buscaEntrada = document.getElementById('buscaEntrada');
@@ -28,8 +26,44 @@ const contadorLivros = document.getElementById('contadorLivros');
 const paginacaoControles = document.getElementById('paginacaoControles');
 
 
-// 1. FUNÇÃO PRINCIPAL: Renderiza a página atual
+// 1. FUNÇÃO: Carrega os dados de forma ASSÍNCRONA
+async function inicializar() {
+    // Exibe uma mensagem de "Carregando" na tabela principal
+    dadosCorpo.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">Carregando dados... Por favor, aguarde.</td></tr>';
+    
+    // Desabilita a busca e botões enquanto carrega
+    buscaEntrada.disabled = true;
+    buscarBotao.disabled = true;
+
+    try {
+        // Tenta carregar o arquivo JSON
+        const response = await fetch('dados_livros.json'); 
+        
+        if (!response.ok) {
+            throw new Error(`Erro de rede ao carregar dados: ${response.status} ${response.statusText}`);
+        }
+        
+        // Povoa os arrays de dados
+        folhaDados = await response.json();
+        dadosAtuais = folhaDados;
+        
+        // Habilita a busca e botões
+        buscaEntrada.disabled = false;
+        buscarBotao.disabled = false;
+        
+        // Inicia a aplicação após o carregamento
+        renderizaPagina(); 
+
+    } catch (error) {
+        console.error("Erro no carregamento inicial:", error);
+        dadosCorpo.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center; padding: 20px;">Falha ao carregar dados. Verifique se o arquivo JSON está correto.</td></tr>';
+    }
+}
+
+
+// 2. FUNÇÃO: Renderiza a página atual (Paginação)
 function renderizaPagina() {
+    // ... (O restante da sua função renderizaPagina permanece o mesmo) ...
     dadosCorpo.innerHTML = '';
     
     const totalDados = dadosAtuais.length;
@@ -43,12 +77,10 @@ function renderizaPagina() {
 
     semResultadoMensagem.classList.add('hidden');
 
-    // Cálculo do slice (fatiamento) dos dados para a página atual
     const inicio = paginaAtual * ITENS_POR_PAGINA;
     const fim = inicio + ITENS_POR_PAGINA;
     const dadosPagina = dadosAtuais.slice(inicio, fim);
     
-    // Renderiza as linhas da tabela
     dadosPagina.forEach(item => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -63,42 +95,38 @@ function renderizaPagina() {
         dadosCorpo.appendChild(row);
     });
 
-    // Atualiza o contador e os controles de navegação
     atualizaControles(totalDados);
 }
 
 
-// 2. FUNÇÃO: Cria e gerencia os botões de paginação
+// 3. FUNÇÃO: Cria e gerencia os botões de paginação
 function atualizaControles(totalDados) {
-    paginacaoControles.innerHTML = ''; // Limpa os controles
+    // ... (Sua função atualizaControles permanece a mesma) ...
+    paginacaoControles.innerHTML = '';
     
     const totalPaginas = Math.ceil(totalDados / ITENS_POR_PAGINA);
     const plural = totalDados === 1 ? 'livro' : 'livros';
     
-    // Atualiza o Contador
     contadorLivros.textContent = `Página ${paginaAtual + 1} de ${totalPaginas} | ${totalDados} ${plural} encontrado(s).`;
 
-    // Se houver apenas uma página, não mostra os botões
     if (totalPaginas <= 1) {
         return;
     }
 
-    // Cria o Botão Anterior
     const btnAnterior = document.createElement('button');
     btnAnterior.textContent = 'Anterior';
     btnAnterior.disabled = paginaAtual === 0;
     btnAnterior.addEventListener('click', () => {
         paginaAtual--;
-        renderizaPagina(); // Renderiza a página anterior
+        renderizaPagina();
     });
     
-    // Cria o Botão Próximo
     const btnProximo = document.createElement('button');
     btnProximo.textContent = 'Próximo';
     btnProximo.disabled = paginaAtual >= totalPaginas - 1;
     btnProximo.addEventListener('click', () => {
         paginaAtual++;
-        renderizaPagina(); // Renderiza a próxima página
+        renderizaPagina();
     });
 
     paginacaoControles.appendChild(btnAnterior);
@@ -106,14 +134,16 @@ function atualizaControles(totalDados) {
 }
 
 
-// 3. FUNÇÃO: Realiza a pesquisa (Filtra dados e RESETA a página)
+// 4. FUNÇÃO: Realiza a pesquisa (Filtra dados e RESETA a página)
 function buscaDados() {
-    const buscaTermo = buscaEntrada.value.toLowerCase().trim();
+    // ... (Sua função buscaDados permanece a mesma) ...
     
-    // Função auxiliar para verificar a inclusão do termo de busca
+    // Importante: Checa se os dados foram carregados antes de buscar
+    if (folhaDados.length === 0) return;
+
+    const buscaTermo = buscaEntrada.value.toLowerCase().trim();
     const check = (value) => String(value ?? '').toLowerCase().includes(buscaTermo);
 
-    // Filtra os dados (mantendo a lista completa se a busca estiver vazia)
     if (buscaTermo === '') {
         dadosAtuais = folhaDados;
     } else {
@@ -128,10 +158,7 @@ function buscaDados() {
         });
     }
 
-    // IMPORTANTE: Reseta para a primeira página após uma nova busca
     paginaAtual = 0;
-    
-    // Renderiza a primeira página dos resultados
     renderizaPagina();
 }
 
@@ -140,15 +167,16 @@ function buscaDados() {
 const debouncedBusca = debounce(buscaDados, 300);
 
 
-// 4. Configuração dos Event Listeners e Inicialização
+// 5. Configuração dos Event Listeners e Inicialização
+// Os listeners são configurados aqui, mas o código só é executado após o carregamento
 buscarBotao.addEventListener('click', buscaDados);
-buscaEntrada.addEventListener('input', debouncedBusca); // Usa debounce para busca contínua
+buscaEntrada.addEventListener('input', debouncedBusca);
 buscaEntrada.addEventListener('keyup', (event) => {
     if (event.key === 'Enter') {
-        buscaDados(); // Enter roda imediatamente
+        buscaDados();
     }
 });
 
-// Exibe a PRIMEIRA página dos dados quando a página carrega
-// Isso garante um carregamento inicial instantâneo.
-renderizaPagina();
+// 🚨 INICIA O PROCESSO DE CARREGAMENTO!
+// Isso garante que o script comece a rodar assim que o DOM estiver pronto.
+document.addEventListener('DOMContentLoaded', inicializar);
