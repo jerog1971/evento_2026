@@ -20,7 +20,7 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
         
         // Redireciona para a página principal da aplicação
         alert("Login realizado com sucesso! Redirecionando...");
-        window.location.href = 'index.html'; // Assumindo que sua aplicação principal é 'index.html'
+        window.location.href = 'pesquisa.html'; // Assumindo que sua aplicação principal é 'pesquisa.html'
         
     } else {
         // Login falhou
@@ -28,4 +28,5 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
         erroElement.classList.remove('hidden');
         passwordInput.value = ''; // Limpa o campo de senha
     }
+
 });
