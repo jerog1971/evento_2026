@@ -13,7 +13,8 @@ const credenciaisConvidado = [
     { usuario: "convidado08", senha: "Evento2025" },
     { usuario: "convidado09", senha: "Evento2025" },
     { usuario: "convidado10", senha: "Evento2025" },
-    { usuario: "convidado11", senha: "Evento2025" }
+    { usuario: "convidado11", senha: "Evento2025" },
+    { usuario: "convidado12", senha: "Evento2025" }
 ];
 
 document.getElementById('loginForm').addEventListener('submit', function(event) {
@@ -63,3 +64,4 @@ document.getElementById('loginForm').addEventListener('submit', function(event) 
         document.getElementById('password').value = ''; // Limpa o campo de senha
     }
 });
+
