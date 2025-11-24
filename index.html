@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validação de Acesso Único - SoluTec 2025</title>
+    <!-- Carrega Tailwind CSS para estilização moderna e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Estilos de fundo para dar um toque didático */
+        .gradient-bg {
+            background: linear-gradient(135deg, #f0f4f8 0%, #e0e7ff 100%);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+
+    <div id="app-container" class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl transition-all duration-300">
+
+        <!-- Área de Login -->
+        <div id="login-screen" class="space-y-6">
+            <h1 class="text-3xl font-bold text-center text-blue-800">
+                <i class="fas fa-lock mr-2"></i> Acesso ao Evento
+            </h1>
+            <p class="text-center text-gray-600">Digite seu código e senha para validar seu acesso único.</p>
+
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Código de Convidado</label>
+                    <input type="text" id="username" placeholder="Ex: convidado01" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <input type="password" id="password" value="solutec2025" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                </div>
+
+                <div id="message-box" class="p-3 text-sm rounded-lg hidden" role="alert"></div>
+
+                <button type="submit" id="login-button"
+                        class="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-150 transform hover:scale-[1.01] flex items-center justify-center">
+                    <span id="loading-spinner" class="hidden animate-spin mr-2">
+                        <i class="fas fa-circle-notch"></i>
+                    </span>
+                    <span id="button-text">Acessar Aplicativo</span>
+                </button>
+            </form>
+            
+            <p id="auth-status" class="text-xs text-center text-gray-400 mt-4">Aguardando inicialização do sistema...</p>
+        </div>
+        <!-- Conteúdo do Aplicativo (removido, pois a lógica agora é de redirecionamento) -->
+    </div>
+
+    <!-- Importações do Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ====================================================================
+        // --- 1. CONFIGURAÇÃO DO FIREBASE (PASSO OBRIGATÓRIO) ---
+        //
+        // SUBSTITUA O OBJETO ABAIXO PELO SEU 'firebaseConfig' REAL, 
+        // OBTIDO NO CONSOLE DO FIREBASE.
+        // Se você não colar sua configuração aqui, o app não funcionará localmente.
+        //
+        // Exemplo:
+        /*
+        const firebaseConfig = {
+            apiKey: "AIzaSy...",
+            authDomain: "seunome.firebaseapp.com",
+            projectId: "seunome-12345",
+            storageBucket: "seunome.appspot.com",
+            messagingSenderId: "9876543210",
+            appId: "1:9876543210:web:abcdef123456"
+        };
+        */
+        const firebaseConfig = {
+
+  apiKey: "AIzaSyB9FLJg8NoKJUriOCqz4kLPGn-kAow0RRM",
+
+  authDomain: "solutec2025-3380a.firebaseapp.com",
+
+  projectId: "solutec2025-3380a",
+
+  storageBucket: "solutec2025-3380a.firebasestorage.app",
+
+  messagingSenderId: "298841536682",
+
+  appId: "1:298841536682:web:3e0489d4ced57b7d3978d3"
+        };
+        
+        // ID Padrão (usa o projectId se estiver configurado, caso contrário usa um fallback)
+        const appId = firebaseConfig.projectId || 'default-app-id'; 
+        
+        // ====================================================================
+
+        // Inicialização do Firebase
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // Caminho da Coleção no Firestore. Usa o appId para isolar os dados
+        const AUTH_COLLECTION_PATH = `artifacts/${appId}/public/data/access_codes`; 
+
+        // Referências do DOM
+        const loginForm = document.getElementById('login-form');
+        const messageBox = document.getElementById('message-box');
+        const authStatus = document.getElementById('auth-status');
+        const loginButton = document.getElementById('login-button');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const buttonText = document.getElementById('button-text');
+
+        // --- Funções Auxiliares de UI ---
+
+        const showMessage = (text, type = 'error') => {
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            }
+        };
+
+        const toggleLoading = (isLoading) => {
+            loginButton.disabled = isLoading;
+            loadingSpinner.classList.toggle('hidden', !isLoading);
+            buttonText.textContent = isLoading ? 'Verificando...' : 'Acessar Aplicativo';
+        };
+        
+        // --- Inicialização do Firebase e Autenticação ---
+
+        const initializeFirebase = async () => {
+            try {
+                // VERIFICA SE A CONFIGURAÇÃO FOI INSERIDA
+                if (!firebaseConfig.apiKey) {
+                    console.error("Firebase config is missing or incomplete.");
+                    authStatus.textContent = 'Erro: Configure o Firebase no código JS (Passo 1).';
+                    showMessage('ERRO: Cole sua configuração do Firebase no arquivo JS.', 'error');
+                    return;
+                }
+                
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Listener de autenticação
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        authStatus.textContent = `Sistema pronto. (UID: ${userId.substring(0, 8)}...)`;
+                        isAuthReady = true;
+                    } else {
+                        userId = null;
+                        authStatus.textContent = 'Autenticando anonimamente...';
+                        // Em ambiente local, sempre tentamos o login anônimo
+                        await signInAnonymously(auth);
+                    }
+                    
+                    // Garante que a seed (criação dos códigos) rode após a autenticação inicial
+                    if (isAuthReady) {
+                        await seedInitialGuests();
+                    }
+                });
+                
+                // Força o início da autenticação anônima se ainda não tiver ocorrido
+                if (!auth.currentUser) {
+                    await signInAnonymously(auth);
+                }
+
+
+            } catch (error) {
+                console.error("Erro na inicialização do Firebase:", error);
+                authStatus.textContent = `Erro grave: ${error.message}`;
+                showMessage(`Erro na inicialização do sistema. Verifique o console.`, 'error');
+            }
+        };
+
+        // --- Seed Inicial (Cria os Códigos de Convidado) ---
+        const seedInitialGuests = async () => {
+            const numGuests = 11;
+            const password = 'solutec2025'; 
+
+            for (let i = 1; i <= numGuests; i++) {
+                const guestId = `convidado${String(i).padStart(2, '0')}`;
+                const docRef = doc(db, AUTH_COLLECTION_PATH, guestId);
+                
+                // Verifica se o documento já existe
+                const docSnap = await getDoc(docRef);
+
+                if (!docSnap.exists()) {
+                    await setDoc(docRef, {
+                        code: guestId,
+                        password: password, 
+                        isUsed: false,
+                    });
+                    console.log(`[SEED] Criado convidado: ${guestId}`);
+                }
+            }
+            authStatus.textContent = `Sistema pronto. ${numGuests} códigos verificados/criados.`;
+        };
+
+        // --- Lógica de Login e Validação de Uso Único ---
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            if (!isAuthReady) {
+                showMessage('O sistema ainda está inicializando. Tente novamente em instantes.', 'error');
+                return;
+            }
+
+            toggleLoading(true);
+            messageBox.classList.add('hidden');
+
+            const username = document.getElementById('username').value.toLowerCase().trim();
+            const password = document.getElementById('password').value;
+
+            if (!username || !password) {
+                showMessage('Preencha o código e a senha.');
+                toggleLoading(false);
+                return;
+            }
+            
+            // 1. Tenta obter a referência do convidado
+            const guestDocRef = doc(db, AUTH_COLLECTION_PATH, username);
+
+            try {
+                // Usamos uma Transação para garantir Atomicidade (ACID)
+                const result = await runTransaction(db, async (transaction) => {
+                    const guestDoc = await transaction.get(guestDocRef);
+
+                    if (!guestDoc.exists()) {
+                        return { status: 'error', message: 'Código de convidado inválido.' };
+                    }
+
+                    const data = guestDoc.data();
+
+                    if (data.password !== password) {
+                        return { status: 'error', message: 'Senha incorreta.' };
+                    }
+
+                    if (data.isUsed === true) {
+                        // VALIDAÇÃO CRUCIAL: O código JÁ FOI USADO. Bloqueia o acesso.
+                        return { status: 'error', message: `O código '${username}' já foi utilizado e está inativo.` };
+                    }
+
+                    // SUCESSO - Marca o código como USADO dentro da transação
+                    transaction.update(guestDocRef, { 
+                        isUsed: true,
+                        usedAt: new Date().toISOString(),
+                        usedByDevice: navigator.userAgent.substring(0, 150)
+                    });
+
+                    return { status: 'success', username: username };
+                });
+
+                if (result.status === 'success') {
+                    // O acesso foi validado e marcado como USADO no Firestore.
+                    showMessage(`Acesso validado! Redirecionando para 'pesquisa.html'...`, 'success');
+                    
+                    // --- LÓGICA DE REDIRECIONAMENTO SOLICITADA ---
+                    setTimeout(() => {
+                        // Limpa a tela antes de redirecionar
+                        document.getElementById('username').value = ''; 
+                        document.getElementById('password').value = 'solutec2025';
+
+                        // Redireciona para a próxima página do seu projeto
+                        window.location.href = 'pesquisa.html';
+                    }, 1500); // 1.5 segundo de atraso para o usuário ver a mensagem de sucesso
+
+                } else {
+                    showMessage(result.message, 'error');
+                    // Não limpa o campo do formulário para o usuário poder tentar novamente
+                }
+
+            } catch (error) {
+                console.error("Erro na transação de login:", error);
+                showMessage('Erro de conexão ou no servidor. Tente novamente.', 'error');
+            } finally {
+                toggleLoading(false);
+            }
+        };
+
+        // --- Event Listener ---
+        loginForm.addEventListener('submit', handleLogin);
+
+        // Inicia o aplicativo
+        initializeFirebase();
+
+    </script>
+</body>
+</html>
