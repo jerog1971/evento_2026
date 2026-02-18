@@ -41737,5 +41737,23 @@
     "Paginas": 102,
     "Autor": "Jefferson Roger",
     "Ano_publicado": "2025"
-  }
+  },
+{
+    "ID": 4640,
+    "Nome_livro": "Saber ler e escrever para se falar bem",
+    "Genero_livro": "Relato pessoal",
+    "Quantidade": 1,
+    "Paginas": 160,
+    "Autor": "Jefferson Roger",
+    "Ano_publicado": "2025"
+  },
+{
+    "ID": 4641,
+    "Nome_livro": "Os piores dias da minha vida II",
+    "Genero_livro": "Suspense-Terror",
+    "Quantidade": 1,
+    "Paginas": 224,
+    "Autor": "Jefferson Roger",
+    "Ano_publicado": "2026"
+  }    
 ]
